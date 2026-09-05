@@ -93,6 +93,14 @@ private:
     QByteArray m_audioResampleBuffer;  // 重采样缓冲区
     qint64 m_lastAudioPts;             // 最后播放的音频 PTS
     int m_audioFrameCount;              // 音频帧计数（用于调试）
+    // decoderthread.h
+private:
+    int m_decodedVideoFrames = 0;   // 实际解码的视频帧数
+public:
+    void setMuted(bool muted);
+
+private:
+    std::atomic<bool> m_muted{false};
 
 };
 

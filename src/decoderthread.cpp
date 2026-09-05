@@ -516,11 +516,13 @@ void DecoderThread::run()
 
         int ret = av_read_frame(fmtCtx, packet);
         if (ret < 0) {
-
-            if (nbFrames <= 1) {
-                m_pause = true;  // 暂停播放
-                continue;        // 进入暂停等待
+            // 如果从未解码出视频帧或只有一帧，且没有音频流 → 视为图片，暂停
+            bool isImage = (m_decodedVideoFrames <= 1 && audioIdx < 0);
+            if (isImage) {
+                m_pause = true;           // 暂停播放，保持最后一帧显示
+                continue;                 // 进入暂停分支，不再循环
             }
+
             // 循环播放
             av_seek_frame(fmtCtx, -1, 0, AVSEEK_FLAG_BACKWARD);
             if (videoCodecCtx) avcodec_flush_buffers(videoCodecCtx);
@@ -594,6 +596,8 @@ void DecoderThread::run()
                         //     img = img.copy();  // 复制为连续行数据，消除填充
                         // }
                         emit frameReady(img);
+                        // ✅ 在这里递增计数
+                        m_decodedVideoFrames++;
                     }
 
                     if (m_stop) break;
@@ -681,3 +685,21 @@ void DecoderThread::run()
         avformat_close_input(&fmtCtx);
     }
 }
+
+void DecoderThread::setMuted(bool muted)
+{
+    m_muted = muted;
+    if (m_audioOutput) {
+        if (muted) {
+            // 静音：将音量设为 0
+            m_audioOutput->setVolume(0.0);
+            qDebug() << "Muted (volume set to 0)";
+        } else {
+            // 取消静音：恢复到之前的音量
+            int vol = m_volume.loadRelaxed();
+            m_audioOutput->setVolume(vol / 100.0f);
+            qDebug() << "Unmuted (volume restored to" << vol << ")";
+        }
+    }
+}
+
